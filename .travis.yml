@@ -1,0 +1,53 @@
+language: cpp
+sudo: false
+compiler:
+    - gcc
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    - sourceline: 'ppa:yjwong/cmake'
+    packages:
+    - gcc-7
+    - g++-7
+    - doxygen
+    - valgrind
+    - cmake3
+    - lcov
+before_install:
+    - eval "${MATRIX_EVAL}"
+    - pip install --user cpp-coveralls
+    - cd $(mktemp -d) && git clone https://github.com/google/googletest.git && cd googletest && mkdir build && cd build && cmake -DCMAKE_INSTALL_PREFIX=${HOME}/gtest .. && make VERBOSE=1 && make VERBOSE=1 install
+    - cd $TRAVIS_BUILD_DIR
+matrix:
+    include:
+        - compiler: gcc
+          env:
+              - VALGRIND="yes"
+              - CMAKE_BUILD_TYPE="Release"
+              - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+        - compiler: gcc
+          env:
+              - VALGRIND="yes"
+              - DOCS="yes"
+              - CMAKE_BUILD_TYPE="Debug"
+              - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+          secure: "Lj6FWQI/E7jVzgzmlLd2zJ85oebkRaqroTGIfYyIgfsiU/vav0m0c3loh7I8YzAFfkOdkrcGlfjnXBkr2NDQ5L48P5Qokr2UgY2BKVSClKo4/yaHR087/DZh2JHFjHdyDZOb0K3NN0HnjdQENxwmHKIYtjfkwghvkSf+ePkotalrNtZ7GXQVcVZTtPZ+tUC40uu18W9Rfy/72R+18biBKeN5yU+qk40Jq61aso0QETqVEEJc/1CgysMLYhTXtT3D/LW44SfCsFat21+92SfThJm3yFoAZjhoM1JEifydiNOTEjVjNtJ1YqamCyUC1nDoqcm1ZRzWcC/ISDbQg/LiGH6mD3129+JwelgaWsrfush4bvT9j52eyle8E0o1c+P8cngrCgmUIDJx8prPXatD68kYna4pAuoXHlRRdB6y6/aJ90OUNr00KtGawuozBZji8FZhvxkUIfIT16Yb9Ye62Qgl6vuiy9igm88a6/8J6KcNAJCuZmkRACaCwUofcnXYdPmvZrvXnKKnBl82adAn1cBdpYlemEF26XPkmnp9o4PCk7hjMqCVZmzdJNS62vjhnRl6DtcdBMFHKhB6P7VJJfjzhDZPooEOre02fpC02l5yD8rrKu9gxIvnPppefCIxSXCjYRCOv7UxSMn/nzQvXW8MVT5Ze8qKuJyIrkAuEmw="
+        - compiler: gcc
+          env:
+              - COVERAGE="true"
+              - CMAKE_BUILD_TYPE="Debug"
+              - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
+script:
+    - mkdir build
+    - cd build
+    - cmake .. -DGTEST_BOTH_LIBRARIES="${HOME}/gtest/lib/libgtest.a ${HOME}/gtest/lib/libgtest_main.a" -DGTEST_INCLUDE_DIRS="${HOME}/gtest/include" -DGTEST_INCLUDE_DIR="${HOME}/gtest/include" -DGTEST_LIBRARY="${HOME}/gtest/lib/libgtest.a" -DGTEST_MAIN_LIBRARY="${HOME}/gtest/lib/libgtest_main.a" -DCOVERALLS=${COVERAGE} -DSTATIC=${STATIC} -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DTRAVIS_BUILD=True
+    - make VERBOSE=1 -j1 JOBS=1
+    - ctest -V -j1 || ./logging_tests
+    - if [ "x$VALGRIND" != "x" ]; then (valgrind --tool=memcheck --track-origins=yes --leak-check=full --trace-children=yes --show-reachable=yes ./logging_tests 2>/tmp/unit-test-valg-logging_tests.log)</dev/null && sed '/in use/!d;s/.*exit:.*\s\([[:digit:]]\+\)\sblocks.*/\1/' /tmp/unit-test-valg-logging_tests.log | { read lines; test $$lines -eq 1 || cat /tmp/unit-test-valg-logging_tests.log; }; fi
+    - if [ "x$COVERAGE" != "x" ]; then make VERBOSE=1 JOBS=1 coveralls; fi
+after_success:
+    - if [ "x$COVERAGE" != "x" ]; then bash coveralls-upload ${COVERALLS_TOKEN} || coveralls --root .. -E ".*external.*" -E ".*CMakeFiles.*" -E ".*test/.*.cpp.*" ; fi
+    - if [ "x$DOCS" != "x" ]; then cd .. && bash scripts/publish-doxygen.sh; fi
+notifications:
+    webhooks: https://fathomless-fjord-24024.herokuapp.com/notify
