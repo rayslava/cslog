@@ -2,6 +2,7 @@
 #include <iostream>
 #include <queue>
 #include <mutex>
+#include <memory>
 #include <condition_variable>
 #include <chrono>
 #include <thread>
