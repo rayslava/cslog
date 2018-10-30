@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <iostream>
 #include <future>
+#include <atomic>
 
 namespace logging {
 
@@ -16,7 +17,8 @@ namespace logging {
   }
 
   void LoggerImpl::log(const LogMessage&& msg) {
-    if (msg._severity > _severity)
+    if (msg._severity > _severity ||
+        !_running.load(std::memory_order_relaxed))
       return;
     // Prepare the message
     const static unsigned int timeout = 25;

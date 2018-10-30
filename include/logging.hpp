@@ -149,6 +149,7 @@ namespace logging {
 
     ~LoggerImpl() {
       if (_writer) {
+        _running.store(false, std::memory_order_relaxed);
         bool empty = false;
         bool expired = false;
         do {
